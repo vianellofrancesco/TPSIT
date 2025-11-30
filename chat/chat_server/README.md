@@ -1,62 +1,73 @@
-
-# Chat Server – Documentazione  
+# Flutter Chat Client – Documentazione  
 Sviluppatore: Francesco Vianello  
 Classe: 5IE  
 
 ## Descrizione del progetto  
-Il progetto implementa un **server TCP in Dart** che gestisce una chatroom multi-utente.  
-Ogni client che si connette invia come primo messaggio il proprio username, dopodiché può inviare messaggi che il server redistribuisce a tutti gli altri utenti tramite un sistema di broadcast.
+Il progetto implementa un **client Flutter** che si connette a un server TCP per partecipare a una chatroom multi-utente.  
+L’app permette a un utente di:
 
-Il server gestisce connessioni multiple, registra automaticamente i partecipanti, rileva disconnessioni e gestisce errori di comunicazione.
+- Inserire username, host e porta  
+- Stabilire una connessione TCP con il server  
+- Inviare e ricevere messaggi in tempo reale  
+- Gestire disconnessioni e riconnessioni  
+
+L’interfaccia è composta da una schermata di login e da una schermata chat con lista messaggi e input.
 
 ---
 
 ## Scelte di sviluppo  
-- Utilizzo di **ServerSocket.bind** per creare un server TCP su IPv4.  
-- Memorizzazione dei client con una **Map<Socket, String>** che associa socket a un username.  
-- Utilizzo di **client.listen** per gestire i messaggi ricevuti, disconnessioni ed errori.  
-- Funzione `broadcast()` per inviare messaggi a tutti i client tranne quello che li ha generati.  
-- Gestione automatica di:
-  - registrazione username al primo messaggio  
-  - join e leave della chat  
-  - chiusura dei socket e pulizia risorse  
+- Uso della classe **Socket** del package `dart:io` per creare una connessione TCP.  
+- Invio automatico dello username al server come primo messaggio.  
+- Gestione asincrona della ricezione dati tramite `socket.listen()`.  
+- Aggiornamento dell’interfaccia in tempo reale grazie a `setState`.  
+- Ritorno alla schermata di login in caso di disconnessione o errore.  
+- Organizzazione a due schermate:
+  - `LoginScreen` per la connessione  
+  - `ChatScreen` per la chat vera e propria  
 
 ---
 
-## Metodi principali  
+## Struttura del progetto  
 
-### `Future<void> start()`  
-- Avvia il server sulla porta definita.  
-- Stampa IP e porta su cui è in ascolto.  
-- Rimane in attesa di connessioni tramite ciclo `await for`.  
-- Per ogni nuova connessione richiama `handleClient`.
+### `main()`  
+Avvia l’app caricando `ChatApp`, che a sua volta mostra la `LoginScreen`.
 
 ---
 
-### `void handleClient(Socket client)`  
-Gestisce completamente l'interazione con un singolo client:
+### `LoginScreen`  
+Permette di inserire:
 
-- Attende il primo messaggio, interpretato come username.  
-- Registra il client nella mappa `clients`.  
-- Per ogni altro messaggio ricevuto:  
-  - lo stampa lato server  
-  - lo inoltra tramite `broadcast()`  
-- Gestisce:
-  - disconnessioni volontarie o improvvise  
-  - errori lato socket  
-  - pulizia dell’utente rimosso  
+- Username  
+- Host  
+- Porta  
 
----
-
-### `void broadcast(String message, {Socket? exclude})`  
-Invia un messaggio a tutti i client attivi, tranne quello indicato in `exclude`.  
-Aggiunge automaticamente newline per il corretto parsing lato client.  
-Gestisce eventuali errori in scrittura su singoli socket.
+#### Funzionalità principali  
+- **_connect()**:  
+  - Valida lo username  
+  - Tenta la connessione TCP con `Socket.connect()`  
+  - In caso di successo apre la `ChatScreen`  
+  - In caso di errore mostra un messaggio tramite `SnackBar`  
 
 ---
 
-### `void stop()`  
-- Chiude il server.  
-- Chiude tutti i socket dei client.  
-- Svuota la lista dei partecipanti.  
-- Stampa conferma di arresto.
+### `ChatScreen`  
+Gestisce la chat vera e propria.
+
+#### Avvio  
+- Invia lo username al server al `initState()`  
+- Avvia `socket.listen()` per:
+  - ricevere messaggi
+  - gestire disconnessioni  
+- I messaggi ricevuti vengono decodificati in UTF-8 e mostrati nella lista `_messages`.
+
+#### Invio messaggi  
+Metodo **_send()**:
+- Invia il testo al server aggiungendo newline `\n`  
+- Mostra localmente il messaggio come “Tu: ...”  
+- Svuota l’input field  
+
+#### Chiusura  
+Nel `dispose()`:
+- Chiude la connessione con `socket.close()`  
+- Libera le risorse della `TextEditingController`
+
