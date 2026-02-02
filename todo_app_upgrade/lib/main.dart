@@ -165,7 +165,7 @@ class _MyHomePageState extends State<MyHomePage> {
       body: _notes.isEmpty
           ? const Center(
               child: Text(
-                'Nessuna nota.\nPremi + per aggiungerne una!',
+                'Nessuna nota.',
                 textAlign: TextAlign.center,
                 style: TextStyle(fontSize: 18, color: Colors.grey),
               ),
@@ -176,7 +176,7 @@ class _MyHomePageState extends State<MyHomePage> {
                 gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
                   crossAxisCount: 2,
                   childAspectRatio: 0.75,
-                  crossAxisSpacing: 8,
+                  crossAxisSpacing: 8, 
                   mainAxisSpacing: 8,
                 ),
                 itemCount: _notes.length,
