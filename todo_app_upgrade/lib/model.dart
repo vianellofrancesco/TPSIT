@@ -1,15 +1,20 @@
 import 'package:flutter/material.dart';
 
 class Todo {
-  Todo({required this.id, required this.name, this.checked = false});
+  Todo({this.id,
+     required this.noteId,
+     required this.name,
+     this.checked = false});
 
   final int? id;
+  final int noteId;
   final String name;
   bool checked;
 
   Map<String, dynamic> toMap() {
     return {
       'id': id,
+      'note_id': noteId,
       'name': name,
       'checked': checked ? 1 : 0,
     };
@@ -18,6 +23,7 @@ class Todo {
   factory Todo.fromMap(Map<String, dynamic> map) {
     return Todo(
       id: map['id'],
+      noteId: map['note_id'],
       name: map['name'],
       checked: map['checked'] == 1,
     );
@@ -25,14 +31,12 @@ class Todo {
 }
 
 class Note {
-  Note({
-    required this.id,
-    required this.title,
+  Note({this.id,
+    required this.title, 
     required this.color,
-    required this.todos,
-  });
+    List<Todo>? todos}) : todos = todos ?? [];
 
-  final int id;
+  final int? id;
   final String title;
   final Color color;
   final List<Todo> todos;
@@ -50,7 +54,6 @@ class Note {
       id: map['id'],
       title: map['title'],
       color: Color(map['color']),
-      todos: [],
     );
   }
 }

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'helper.dart';
 import 'model.dart';
 import 'widgets.dart';
 
@@ -12,7 +13,7 @@ class MyApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'zKeep - Note con Todo',
+      title: 'zKeep',
       theme: ThemeData(
         colorScheme: ColorScheme.fromSeed(seedColor: Colors.amber),
         useMaterial3: true,
@@ -37,6 +38,26 @@ class _MyHomePageState extends State<MyHomePage> {
   @override
   void initState() {
     super.initState();
+    _init();
+  }
+
+  Future<void> _init() async {
+    await DatabaseHelper.init();
+    _updateNotes();
+  }
+
+  void _updateNotes() {
+    DatabaseHelper.getNotes().then((notes) async {
+      // per ogni nota carico i suoi todos
+      for (Note note in notes) {
+        List<Todo> todos = await DatabaseHelper.getTodosForNote(note.id!);
+        note.todos.addAll(todos);
+      }
+      setState(() {
+        _notes.clear();
+        _notes.addAll(notes);
+      });
+    });
   }
 
   void _addNewNote() {
@@ -62,13 +83,18 @@ class _MyHomePageState extends State<MyHomePage> {
             TextButton(
               onPressed: () {
                 if (titleController.text.trim().isNotEmpty) {
-                  setState(() {
-                    _notes.add(Note(
-                      id: _notes.length + 1,
-                      title: titleController.text,
-                      color: _getRandomColor(),
-                      todos: [],
-                    ));
+                  Note note = Note(
+                    title: titleController.text,
+                    color: _getRandomColor(),
+                  );
+                  DatabaseHelper.insertNote(note).then((newId) {
+                    setState(() {
+                      _notes.add(Note(
+                        id: newId,
+                        title: note.title,
+                        color: note.color,
+                      ));
+                    });
                   });
                 }
                 Navigator.of(context).pop();
@@ -99,6 +125,7 @@ class _MyHomePageState extends State<MyHomePage> {
     setState(() {
       _notes.remove(note);
     });
+    DatabaseHelper.deleteNote(note);
   }
 
   void _addTodoToNote(Note note) {
@@ -124,12 +151,20 @@ class _MyHomePageState extends State<MyHomePage> {
             TextButton(
               onPressed: () {
                 if (todoController.text.trim().isNotEmpty) {
-                  setState(() {
-                    note.todos.add(Todo(
-                      id: note.todos.length + 1,
-                      name: todoController.text,
-                      checked: false,
-                    ));
+                  Todo todo = Todo(
+                    noteId: note.id!,
+                    name: todoController.text,
+                    checked: false,
+                  );
+                  DatabaseHelper.insertTodo(todo).then((newId) {
+                    setState(() {
+                      note.todos.add(Todo(
+                        id: newId,
+                        noteId: note.id!,
+                        name: todo.name,
+                        checked: false,
+                      ));
+                    });
                   });
                 }
                 Navigator.of(context).pop();
@@ -146,12 +181,14 @@ class _MyHomePageState extends State<MyHomePage> {
     setState(() {
       todo.checked = !todo.checked;
     });
+    DatabaseHelper.updateTodo(todo);
   }
 
   void _deleteTodo(Note note, Todo todo) {
     setState(() {
       note.todos.remove(todo);
     });
+    DatabaseHelper.deleteTodo(todo);
   }
 
   @override
@@ -176,7 +213,7 @@ class _MyHomePageState extends State<MyHomePage> {
                 gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
                   crossAxisCount: 2,
                   childAspectRatio: 0.75,
-                  crossAxisSpacing: 8, 
+                  crossAxisSpacing: 8,
                   mainAxisSpacing: 8,
                 ),
                 itemCount: _notes.length,
