@@ -48,7 +48,6 @@ class _MyHomePageState extends State<MyHomePage> {
 
   void _updateNotes() {
     DatabaseHelper.getNotes().then((notes) async {
-      // per ogni nota carico i suoi todos
       for (Note note in notes) {
         List<Todo> todos = await DatabaseHelper.getTodosForNote(note.id!);
         note.todos.addAll(todos);

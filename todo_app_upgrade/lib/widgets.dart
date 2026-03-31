@@ -28,7 +28,6 @@ class NoteCard extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Header della nota
           Container(
             padding: const EdgeInsets.all(12),
             decoration: BoxDecoration(
@@ -60,7 +59,6 @@ class NoteCard extends StatelessWidget {
               ],
             ),
           ),
-          // Lista dei todo
           Expanded(
             child: note.todos.isEmpty
                 ? const Center(
@@ -85,7 +83,6 @@ class NoteCard extends StatelessWidget {
                     },
                   ),
           ),
-          // Pulsante aggiungi todo
           Padding(
             padding: const EdgeInsets.all(8.0),
             child: SizedBox(

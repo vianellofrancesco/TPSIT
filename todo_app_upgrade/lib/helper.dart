@@ -27,7 +27,6 @@ class DatabaseHelper {
     ''');
   }
 
-  // --- Notes ---
 
   static Future<List<Note>> getNotes() async {
     String path = join(await getDatabasesPath(), 'zkeep.db');
@@ -50,7 +49,6 @@ class DatabaseHelper {
     await db.delete('notes', where: 'id = ?', whereArgs: [note.id]);
   }
 
-  // --- Todos ---
 
   static Future<List<Todo>> getTodosForNote(int noteId) async {
     String path = join(await getDatabasesPath(), 'zkeep.db');
