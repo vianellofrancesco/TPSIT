@@ -35,10 +35,17 @@ I dati provengono dall’API pubblica di Electricity Maps.
 - Prima definizione del README 
 - Prime scelte di sviluppo
 
-### Commit 2 — 
+
+### Commit 2 — Database MySQL e configurazione server 
+
+- Creato lo schema del database con due tabelle: zones_monitored e carbon_readings
+- Scelta di usare zone_key come chiave unica e foreign key per collegare le due tabelle
+- Configurata connessione PDO con error handling
+- Creato router REST base con supporto CORS
   
 ---
 
 ## Fonti
 
 - Electricity Maps API Docs: https://docs.electricitymaps.com/
+- PHP documentation: https://www.php.net/manual/
