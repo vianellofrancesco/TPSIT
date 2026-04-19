@@ -49,6 +49,14 @@ I dati provengono dall’API pubblica di Electricity Maps.
 - PATCH implementato con query dinamica
 - Gestione errori con codici HTTP appropriati 
   
+
+### Commit 4 — CRUD carbon_readings e proxy API esterna
+- Implementato CRUD completo per la risorsa readings
+- Creato il ProxyController che funge da intermediario verso l'API Electricity Maps
+- Scelta architetturale: proxy salva automaticamente le letture nel database ad ogni chiamata
+- Usato cURL per le chiamate HTTP esterne e gestione errori
+
+
 ---
 
 ## Fonti
