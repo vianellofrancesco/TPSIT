@@ -42,6 +42,12 @@ I dati provengono dall’API pubblica di Electricity Maps.
 - Scelta di usare zone_key come chiave unica e foreign key per collegare le due tabelle
 - Configurata connessione PDO con error handling
 - Creato router REST base con supporto CORS
+
+
+### Commit 3 — CRUD completo zones_monitored
+- Implementati tutti i metodi HTTP per la risorsa zones: GET, POST, PUT, PATCH, DELETE
+- PATCH implementato con query dinamica
+- Gestione errori con codici HTTP appropriati 
   
 ---
 
@@ -49,3 +55,4 @@ I dati provengono dall’API pubblica di Electricity Maps.
 
 - Electricity Maps API Docs: https://docs.electricitymaps.com/
 - PHP documentation: https://www.php.net/manual/
+- Flutter documentation: https://docs.flutter.dev/
