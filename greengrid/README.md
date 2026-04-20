@@ -57,6 +57,12 @@ I dati provengono dall’API pubblica di Electricity Maps.
 - Usato cURL per le chiamate HTTP esterne e gestione errori
 
 
+### Commit 5 — setup flutter app, modelli e servizi
+- Creazione app Flutter 
+- Implementati i modelli ZoneMonitored e CarbonReading con supporto doppia serializzazione (JSON per API e Map per SQLite)
+- Creazione ApiService con tutti i metodi per comunicare col backend 
+- Palette centralizzata in `lib/config/app_colors.dart` con colori dinamici per l'intensità carbonica 
+
 ---
 
 ## Fonti
