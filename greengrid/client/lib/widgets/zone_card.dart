@@ -5,23 +5,49 @@ import '../models/carbon_reading.dart';
 import '../models/zone_monitored.dart';
 import 'power_mix_bar.dart';
 
-/// Card della lista home che mostra una zona monitorata.
-///
-/// Layout (secondo specifica):
-///  - A sinistra: label utente (fallback `zone_name`), `zone_key`, nota in corsivo.
-///  - A destra: intensità carbonica in grande, colore dinamico, unità gCO₂.
-///  - In basso: [PowerMixBar] (8px) se il breakdown è disponibile.
+
 class ZoneCard extends StatelessWidget {
   final ZoneMonitored zone;
   final CarbonReading? latestReading;
   final VoidCallback? onTap;
+  final Future<void> Function()? onDelete;
 
   const ZoneCard({
     super.key,
     required this.zone,
     this.latestReading,
     this.onTap,
+    this.onDelete,
   });
+
+  static Color _intensityColor(double v) {
+    if (v < 150) return AppColors.primary;       
+    if (v <= 400) return AppColors.carbonHigh;   
+    return AppColors.error;                      
+  }
+
+  Future<void> _confirmDelete(BuildContext context) async {
+    if (onDelete == null) return;
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Rimuovi zona'),
+        content: Text('Vuoi rimuovere "${zone.displayName}" dalle zone monitorate?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(false),
+            child: const Text('Annulla'),
+          ),
+          TextButton(
+            style: TextButton.styleFrom(foregroundColor: AppColors.error),
+            onPressed: () => Navigator.of(ctx).pop(true),
+            child: const Text('Elimina'),
+          ),
+        ],
+      ),
+    );
+    if (ok == true) await onDelete!.call();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -32,6 +58,7 @@ class ZoneCard extends StatelessWidget {
       clipBehavior: Clip.antiAlias,
       child: InkWell(
         onTap: onTap,
+        onLongPress: onDelete == null ? null : () => _confirmDelete(context),
         child: Padding(
           padding: const EdgeInsets.all(14),
           child: Column(
@@ -146,7 +173,7 @@ class _RightBlock extends StatelessWidget {
       );
     }
 
-    final color = AppColors.carbonColor(intensity!);
+    final color = ZoneCard._intensityColor(intensity!);
     return Column(
       crossAxisAlignment: CrossAxisAlignment.end,
       mainAxisSize: MainAxisSize.min,

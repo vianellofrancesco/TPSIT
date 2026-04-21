@@ -1,9 +1,13 @@
 import 'package:flutter/material.dart';
+// `intl` esporta la propria `TextDirection` (per BiDi) che collide con quella
+// di `dart:ui` usata da `TextPainter`; la nascondiamo.
 import 'package:intl/intl.dart' hide TextDirection;
 
 import '../config/app_colors.dart';
+import '../models/carbon_reading.dart';
 import '../models/zone_monitored.dart';
 import '../services/api_service.dart';
+import '../services/database_helper.dart';
 import '../widgets/power_mix_bar.dart';
 import 'edit_zone_screen.dart';
 
@@ -53,15 +57,18 @@ class _ZoneDetailScreenState extends State<ZoneDetailScreen> {
       final breakdownRes = results[1] as Map<String, dynamic>;
       final historyRes   = results[2] as List<Map<String, dynamic>>;
 
+      // Intensità live
       _intensity = (intensityRes['carbonIntensity'] as num?)?.toDouble();
       final dtStr = intensityRes['datetime'] as String?;
       _intensityUpdatedAt = dtStr != null ? DateTime.tryParse(dtStr) : null;
 
+      // Mix
       final rawBreakdown = breakdownRes['powerConsumptionBreakdown']
                        ?? breakdownRes['powerProductionBreakdown'];
       _breakdown = _numMapFrom(rawBreakdown);
       _renewablePct = (breakdownRes['renewablePercentage'] as num?)?.toDouble();
 
+      // History 24h
       _history = historyRes
           .map((e) => _HistoryPoint(
                 dt: DateTime.tryParse((e['datetime'] ?? '').toString()) ??
@@ -72,13 +79,79 @@ class _ZoneDetailScreenState extends State<ZoneDetailScreen> {
           .toList()
         ..sort((a, b) => a.dt.compareTo(b.dt));
 
+      // Persistenza cache: lettura "corrente" + serie oraria.
+      await _persistToCache(historyRes);
+
       setState(() => _loading = false);
     } on ApiException catch (e) {
+      // Fallback: riempi i campi dalla cache, se disponibile.
+      final hadCache = await _loadFromCache();
       setState(() {
         _loading = false;
-        _error = e.message;
+        _error   = hadCache ? null : e.message;
       });
     }
+  }
+
+
+  Future<void> _persistToCache(List<Map<String, dynamic>> historyRes) async {
+    final cache = DatabaseHelper.instance;
+    final readings = <CarbonReading>[];
+
+    if (_intensity != null || _breakdown.isNotEmpty || _renewablePct != null) {
+      readings.add(CarbonReading(
+        zoneKey:             _zone.zoneKey,
+        carbonIntensity:     _intensity,
+        renewablePercentage: _renewablePct,
+        powerBreakdown:      _breakdown.map((k, v) => MapEntry(k, v.toDouble())),
+        readingDatetime:     _intensityUpdatedAt ?? DateTime.now(),
+        fetchedAt:           DateTime.now(),
+      ));
+    }
+
+    for (final e in historyRes) {
+      final dt = DateTime.tryParse((e['datetime'] ?? '').toString());
+      final ci = (e['carbonIntensity'] as num?)?.toDouble();
+      if (dt == null || ci == null) continue;
+      readings.add(CarbonReading(
+        zoneKey:         _zone.zoneKey,
+        carbonIntensity: ci,
+        readingDatetime: dt,
+        fetchedAt:       DateTime.now(),
+      ));
+    }
+
+    if (readings.isNotEmpty) {
+      await cache.cacheReadings(_zone.zoneKey, readings);
+    }
+  }
+
+
+  Future<bool> _loadFromCache() async {
+    final cached = await DatabaseHelper.instance
+        .getCachedReadings(_zone.zoneKey, limit: 48);
+    if (cached.isEmpty) return false;
+
+    final latest = cached.firstWhere(
+      (r) => r.carbonIntensity != null,
+      orElse: () => cached.first,
+    );
+    _intensity          = latest.carbonIntensity;
+    _intensityUpdatedAt = latest.readingDatetime;
+    _renewablePct       = latest.renewablePercentage;
+
+    final bd = latest.powerBreakdown;
+    _breakdown = bd == null
+        ? const {}
+        : _numMapFrom(bd);
+
+    _history = cached
+        .where((r) => r.carbonIntensity != null)
+        .map((r) => _HistoryPoint(dt: r.readingDatetime, value: r.carbonIntensity))
+        .toList()
+      ..sort((a, b) => a.dt.compareTo(b.dt));
+
+    return true;
   }
 
   Map<String, num> _numMapFrom(dynamic raw) {
@@ -110,10 +183,15 @@ class _ZoneDetailScreenState extends State<ZoneDetailScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: Text(_zone.displayName)),
-      floatingActionButton: FloatingActionButton(
-        onPressed: _openEdit,
-        child: const Icon(Icons.edit),
+      appBar: AppBar(
+        title: Text(_zone.displayName),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.edit),
+            tooltip: 'Modifica zona',
+            onPressed: _openEdit,
+          ),
+        ],
       ),
       body: RefreshIndicator(
         onRefresh: _load,
@@ -275,6 +353,7 @@ class _ZoneDetailScreenState extends State<ZoneDetailScreen> {
       );
     }
 
+    // Normalizza a percentuali
     final total = _breakdown.values.fold<double>(0, (a, b) => a + b.toDouble());
     final entries = _breakdown.entries
         .map((e) => MapEntry(e.key, e.value.toDouble() / total * 100))

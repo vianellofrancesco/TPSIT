@@ -63,6 +63,12 @@ I dati provengono dall’API pubblica di Electricity Maps.
 - Creazione ApiService con tutti i metodi per comunicare col backend 
 - Palette centralizzata in `lib/config/app_colors.dart` con colori dinamici per l'intensità carbonica 
 
+
+### Commit 6 — Flutter: UI completa e cache SQLite
+- Implementata la cache locale con sqflite: due tabelle speculari a quelle del server per permettere il funzionamento offline
+- Creati i widget riutilizzabili: ZoneCard, PowerMixBar, OfflineBanner 
+- Implementate tutte le 4 schermate: Home , Dettaglio zona, Aggiungi zona, Modifica zona 
+
 ---
 
 ## Fonti

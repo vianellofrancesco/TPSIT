@@ -3,6 +3,8 @@ import 'package:flutter/material.dart';
 import '../config/app_colors.dart';
 import '../models/zone_monitored.dart';
 import '../services/api_service.dart';
+import '../services/connectivity_service.dart';
+import '../services/database_helper.dart';
 
 
 class EditZoneScreen extends StatefulWidget {
@@ -39,13 +41,25 @@ class _EditZoneScreenState extends State<EditZoneScreen> {
     super.dispose();
   }
 
+  Future<bool> _ensureOnline() async {
+    final online = await ConnectivityService().isOnline();
+    if (online) return true;
+    if (!mounted) return false;
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('Impossibile modificare, controlla la connessione')),
+    );
+    return false;
+  }
+
   Future<void> _save() async {
+    if (!await _ensureOnline()) return;
     setState(() => _saving = true);
     try {
       final updated = await widget.apiService.patchZone(widget.zone.id!, {
         'user_label': _labelCtrl.text.trim().isEmpty ? null : _labelCtrl.text.trim(),
         'notes':      _notesCtrl.text.trim().isEmpty ? null : _notesCtrl.text.trim(),
       });
+      await DatabaseHelper.instance.cacheZone(updated);
       if (!mounted) return;
       Navigator.of(context).pop(updated);
     } on ApiException catch (e) {
@@ -78,10 +92,12 @@ class _EditZoneScreenState extends State<EditZoneScreen> {
       ),
     );
     if (ok != true) return;
+    if (!await _ensureOnline()) return;
 
     setState(() => _deleting = true);
     try {
       await widget.apiService.deleteZone(widget.zone.id!);
+      await DatabaseHelper.instance.removeCachedZone(widget.zone.id!);
       if (!mounted) return;
       Navigator.of(context).pop('deleted');
     } on ApiException catch (e) {
@@ -103,7 +119,6 @@ class _EditZoneScreenState extends State<EditZoneScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-           
             Container(
               padding: const EdgeInsets.all(14),
               decoration: BoxDecoration(

@@ -2,25 +2,19 @@ import 'package:flutter/material.dart';
 
 import '../config/app_colors.dart';
 
-/// Barra colorata che visualizza il mix energetico di una zona, più una
-/// legenda opzionale con le percentuali.
-///
-/// La `breakdown` ha come chiavi i nomi delle fonti come arrivano dall'API
-/// Electricity Maps (`solar`, `wind`, `hydro`, `nuclear`, `gas`, `coal`,
-/// `oil`, `biomass`, `geothermal`, `unknown`) e come valori le percentuali
-/// (0–100) oppure i MW (verranno normalizzati a percentuali).
+
 class PowerMixBar extends StatelessWidget {
   final Map<String, num> breakdown;
   final double height;
   final bool showLegend;
 
-  /// Soglia (in %) sotto la quale la fonte non appare in legenda.
+  
   static const double _legendThreshold = 2.0;
 
   const PowerMixBar({
     super.key,
     required this.breakdown,
-    this.height = 8,
+    this.height = 14,
     this.showLegend = true,
   });
 
@@ -72,9 +66,7 @@ class PowerMixBar extends StatelessWidget {
     );
   }
 
-  /// Converte la mappa in una lista di entry percentuali > 0, ordinate
-  /// decrescenti. Se i valori totali non sembrano essere già percentuali
-  /// (ad es. watt), li rinormalizza a somma 100.
+  
   List<MapEntry<String, double>> _normalizedEntries() {
     final filtered = <String, double>{};
     breakdown.forEach((k, v) {

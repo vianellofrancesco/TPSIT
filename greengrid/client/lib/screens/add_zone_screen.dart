@@ -3,6 +3,8 @@ import 'package:flutter/material.dart';
 import '../config/app_colors.dart';
 import '../models/zone_monitored.dart';
 import '../services/api_service.dart';
+import '../services/connectivity_service.dart';
+import '../services/database_helper.dart';
 
 
 class AddZoneScreen extends StatefulWidget {
@@ -14,7 +16,6 @@ class AddZoneScreen extends StatefulWidget {
 }
 
 class _AddZoneScreenState extends State<AddZoneScreen> {
-
   final TextEditingController _searchCtrl = TextEditingController();
   bool _loadingZones = true;
   String? _loadError;
@@ -100,6 +101,16 @@ class _AddZoneScreenState extends State<AddZoneScreen> {
 
   Future<void> _saveZone() async {
     if (_selected == null) return;
+
+    final online = await ConnectivityService().isOnline();
+    if (!online) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Impossibile salvare, controlla la connessione')),
+      );
+      return;
+    }
+
     setState(() => _saving = true);
     try {
       final zone = ZoneMonitored(
@@ -109,12 +120,16 @@ class _AddZoneScreenState extends State<AddZoneScreen> {
         notes:     _notesCtrl.text.trim().isEmpty ? null : _notesCtrl.text.trim(),
       );
       final created = await widget.apiService.createZone(zone);
+      await DatabaseHelper.instance.cacheZone(created);
       if (!mounted) return;
       Navigator.of(context).pop(created);
     } on ApiException catch (e) {
       if (!mounted) return;
+      final msg = e.statusCode == 409
+          ? 'Zona già salvata'
+          : 'Errore: ${e.message}';
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Errore: ${e.message}')),
+        SnackBar(content: Text(msg)),
       );
     } finally {
       if (mounted) setState(() => _saving = false);
