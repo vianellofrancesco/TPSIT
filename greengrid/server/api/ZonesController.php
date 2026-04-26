@@ -6,7 +6,6 @@ class ZonesController {
 
     private PDO $db;
 
-    
     private const ALLOWED_FIELDS = ['zone_key', 'zone_name', 'user_label', 'notes'];
 
     public function __construct() {
@@ -14,7 +13,6 @@ class ZonesController {
         $this->db = $database->getConnection();
     }
 
-    
     public function handle(string $method, ?string $id): void {
         try {
             switch ($method) {
@@ -41,11 +39,10 @@ class ZonesController {
             }
         } catch (PDOException $e) {
             http_response_code(500);
-            echo json_encode(['error' => 'Errore del database', 'detail' => $e->getMessage()]);
+            echo json_encode(['error' => 'Errore del database']);
         }
     }
 
-   
     private function index(): void {
         $stmt = $this->db->query(
             "SELECT id, zone_key, zone_name, user_label, notes, created_at, updated_at
@@ -55,7 +52,6 @@ class ZonesController {
         echo json_encode($stmt->fetchAll());
     }
 
-    
     private function show(string $id): void {
         $zone = $this->findById($id);
         if (!$zone) {
@@ -65,14 +61,13 @@ class ZonesController {
         echo json_encode($zone);
     }
 
-    
     private function store(): void {
         $data = $this->readJsonBody();
 
-        $zoneKey  = trim($data['zone_key']  ?? '');
+        $zoneKey = trim($data['zone_key'] ?? '');
         $zoneName = trim($data['zone_name'] ?? '');
-        $label    = $data['user_label'] ?? null;
-        $notes    = $data['notes']      ?? null;
+        $label = $data['user_label'] ?? null;
+        $notes = $data['notes'] ?? null;
 
         if ($zoneKey === '' || $zoneName === '') {
             http_response_code(400);
@@ -80,7 +75,6 @@ class ZonesController {
             return;
         }
 
-       
         $check = $this->db->prepare("SELECT id FROM zones_monitored WHERE zone_key = :zone_key");
         $check->execute([':zone_key' => $zoneKey]);
         if ($check->fetch()) {
@@ -94,10 +88,10 @@ class ZonesController {
              VALUES (:zone_key, :zone_name, :user_label, :notes)"
         );
         $stmt->execute([
-            ':zone_key'   => $zoneKey,
-            ':zone_name'  => $zoneName,
+            ':zone_key' => $zoneKey,
+            ':zone_name' => $zoneName,
             ':user_label' => $label,
-            ':notes'      => $notes,
+            ':notes' => $notes,
         ]);
 
         $newId = $this->db->lastInsertId();
@@ -105,7 +99,6 @@ class ZonesController {
         echo json_encode($this->findById($newId));
     }
 
-    
     private function update(string $id): void {
         $existing = $this->findById($id);
         if (!$existing) {
@@ -123,7 +116,7 @@ class ZonesController {
             }
         }
 
-        $zoneKey  = trim($data['zone_key']);
+        $zoneKey = trim($data['zone_key']);
         $zoneName = trim($data['zone_name']);
         if ($zoneKey === '' || $zoneName === '') {
             http_response_code(400);
@@ -140,17 +133,16 @@ class ZonesController {
              WHERE id = :id"
         );
         $stmt->execute([
-            ':zone_key'   => $zoneKey,
-            ':zone_name'  => $zoneName,
+            ':zone_key' => $zoneKey,
+            ':zone_name' => $zoneName,
             ':user_label' => $data['user_label'],
-            ':notes'      => $data['notes'],
-            ':id'         => $id,
+            ':notes' => $data['notes'],
+            ':id' => $id,
         ]);
 
         echo json_encode($this->findById($id));
     }
 
-    
     private function patch(string $id): void {
         $existing = $this->findById($id);
         if (!$existing) {
@@ -160,9 +152,8 @@ class ZonesController {
 
         $data = $this->readJsonBody();
 
-        
         $setParts = [];
-        $params   = [':id' => $id];
+        $params = [':id' => $id];
         foreach (self::ALLOWED_FIELDS as $field) {
             if (array_key_exists($field, $data)) {
                 $setParts[] = "$field = :$field";
@@ -183,7 +174,6 @@ class ZonesController {
         echo json_encode($this->findById($id));
     }
 
-   
     private function destroy(string $id): void {
         $existing = $this->findById($id);
         if (!$existing) {
@@ -194,7 +184,7 @@ class ZonesController {
         $stmt = $this->db->prepare("DELETE FROM zones_monitored WHERE id = :id");
         $stmt->execute([':id' => $id]);
 
-        echo json_encode(['message' => 'Zona eliminata']);
+        echo json_encode(['deleted' => true, 'id' => (int)$id]);
     }
 
     private function findById(string $id): ?array {

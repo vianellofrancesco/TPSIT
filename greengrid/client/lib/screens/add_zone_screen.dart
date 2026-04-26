@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 
 import '../config/app_colors.dart';
@@ -5,7 +7,6 @@ import '../models/zone_monitored.dart';
 import '../services/api_service.dart';
 import '../services/connectivity_service.dart';
 import '../services/database_helper.dart';
-
 
 class AddZoneScreen extends StatefulWidget {
   final ApiService apiService;
@@ -28,17 +29,34 @@ class _AddZoneScreenState extends State<AddZoneScreen> {
   final TextEditingController _notesCtrl = TextEditingController();
   bool _saving = false;
 
+  final ConnectivityService _connectivity = ConnectivityService();
+  bool _online = true;
+  StreamSubscription<bool>? _connSub;
+
   @override
   void initState() {
     super.initState();
-    _loadZones();
+    _initConnectivity();
     _searchCtrl.addListener(() {
       setState(() => _query = _searchCtrl.text.trim());
     });
   }
 
+  Future<void> _initConnectivity() async {
+    _online = await _connectivity.isOnline();
+    if (mounted) setState(() {});
+    if (_online) _loadZones();
+    _connSub = _connectivity.onConnectivityChanged.listen((isOn) {
+      if (!mounted) return;
+      final wasOffline = !_online;
+      setState(() => _online = isOn);
+      if (wasOffline && isOn && _allZones.isEmpty) _loadZones();
+    });
+  }
+
   @override
   void dispose() {
+    _connSub?.cancel();
     _searchCtrl.dispose();
     _labelCtrl.dispose();
     _notesCtrl.dispose();
@@ -55,10 +73,7 @@ class _AddZoneScreenState extends State<AddZoneScreen> {
       final options = <_ZoneOption>[];
       raw.forEach((key, value) {
         if (value is Map) {
-          final name = (value['zoneName'] ??
-                  value['countryName'] ??
-                  key)
-              .toString();
+          final name = (value['zoneName'] ?? value['countryName'] ?? key).toString();
           options.add(_ZoneOption(key: key, name: name));
         } else {
           options.add(_ZoneOption(key: key, name: key));
@@ -95,8 +110,17 @@ class _AddZoneScreenState extends State<AddZoneScreen> {
       final res = await widget.apiService.getCarbonIntensity(option.key);
       if (!mounted) return;
       setState(() => _liveIntensity = res);
-    } catch (_) {
-    }
+    } catch (_) {}
+  }
+
+  void _showError(String msg) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(msg),
+        backgroundColor: AppColors.error,
+        behavior: SnackBarBehavior.floating,
+      ),
+    );
   }
 
   Future<void> _saveZone() async {
@@ -105,19 +129,17 @@ class _AddZoneScreenState extends State<AddZoneScreen> {
     final online = await ConnectivityService().isOnline();
     if (!online) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Impossibile salvare, controlla la connessione')),
-      );
+      _showError('Impossibile salvare, controlla la connessione');
       return;
     }
 
     setState(() => _saving = true);
     try {
       final zone = ZoneMonitored(
-        zoneKey:   _selected!.key,
-        zoneName:  _selected!.name,
+        zoneKey: _selected!.key,
+        zoneName: _selected!.name,
         userLabel: _labelCtrl.text.trim().isEmpty ? null : _labelCtrl.text.trim(),
-        notes:     _notesCtrl.text.trim().isEmpty ? null : _notesCtrl.text.trim(),
+        notes: _notesCtrl.text.trim().isEmpty ? null : _notesCtrl.text.trim(),
       );
       final created = await widget.apiService.createZone(zone);
       await DatabaseHelper.instance.cacheZone(created);
@@ -125,12 +147,8 @@ class _AddZoneScreenState extends State<AddZoneScreen> {
       Navigator.of(context).pop(created);
     } on ApiException catch (e) {
       if (!mounted) return;
-      final msg = e.statusCode == 409
-          ? 'Zona già salvata'
-          : 'Errore: ${e.message}';
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(msg)),
-      );
+      final msg = e.statusCode == 409 ? 'Zona già salvata' : 'Errore: ${e.message}';
+      _showError(msg);
     } finally {
       if (mounted) setState(() => _saving = false);
     }
@@ -140,7 +158,34 @@ class _AddZoneScreenState extends State<AddZoneScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(title: const Text('Aggiungi zona')),
-      body: _selected == null ? _buildSearchPhase() : _buildCustomizePhase(),
+      body: !_online
+          ? _buildOfflineLock()
+          : _selected == null
+              ? _buildSearchPhase()
+              : _buildCustomizePhase(),
+    );
+  }
+
+  Widget _buildOfflineLock() {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(32),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: const [
+            Icon(Icons.cloud_off, size: 64, color: AppColors.textSecondary),
+            SizedBox(height: 16),
+            Text(
+              'Per aggiungere una nuova zona è necessaria la connessione internet',
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                fontSize: 15,
+                color: AppColors.textSecondary,
+              ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 
@@ -151,10 +196,19 @@ class _AddZoneScreenState extends State<AddZoneScreen> {
           padding: const EdgeInsets.all(16),
           child: TextField(
             controller: _searchCtrl,
-            decoration: const InputDecoration(
-              prefixIcon: Icon(Icons.search, color: AppColors.textSecondary),
+            decoration: InputDecoration(
+              prefixIcon: const Icon(Icons.search, color: AppColors.textSecondary),
               hintText: 'Cerca paese o zona...',
-              hintStyle: TextStyle(color: Color(0xFFB4B2A9)),
+              hintStyle: const TextStyle(color: Color(0xFFB4B2A9)),
+              suffixIcon: _query.isNotEmpty
+                  ? IconButton(
+                      icon: const Icon(Icons.clear, size: 18),
+                      color: AppColors.textSecondary,
+                      onPressed: () {
+                        _searchCtrl.clear();
+                      },
+                    )
+                  : null,
             ),
           ),
         ),
@@ -166,7 +220,17 @@ class _AddZoneScreenState extends State<AddZoneScreen> {
   Widget _buildSearchResults() {
     if (_loadingZones) {
       return const Center(
-        child: CircularProgressIndicator(color: AppColors.primary),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            CircularProgressIndicator(color: AppColors.primary),
+            SizedBox(height: 12),
+            Text(
+              'Caricamento zone disponibili...',
+              style: TextStyle(fontSize: 13, color: AppColors.textSecondary),
+            ),
+          ],
+        ),
       );
     }
     if (_loadError != null) {
@@ -194,9 +258,16 @@ class _AddZoneScreenState extends State<AddZoneScreen> {
       return const Center(
         child: Padding(
           padding: EdgeInsets.all(24),
-          child: Text(
-            'Digita almeno 2 caratteri per cercare',
-            style: TextStyle(color: AppColors.textSecondary),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(Icons.search, size: 40, color: AppColors.textSecondary),
+              SizedBox(height: 10),
+              Text(
+                'Digita almeno 2 caratteri per cercare',
+                style: TextStyle(color: AppColors.textSecondary),
+              ),
+            ],
           ),
         ),
       );
@@ -288,7 +359,7 @@ class _AddZoneScreenState extends State<AddZoneScreen> {
             controller: _labelCtrl,
             decoration: const InputDecoration(
               labelText: 'La tua etichetta',
-              hintText: 'es. Casa, Ufficio…',
+              hintText: 'es. Casa, Ufficio...',
             ),
           ),
           const SizedBox(height: 14),
@@ -330,7 +401,7 @@ class _AddZoneScreenState extends State<AddZoneScreen> {
           TextButton(
             style: TextButton.styleFrom(foregroundColor: AppColors.textSecondary),
             onPressed: _saving ? null : () => setState(() => _selected = null),
-            child: const Text('← Torna alla ricerca'),
+            child: const Text('Torna alla ricerca'),
           ),
         ],
       ),

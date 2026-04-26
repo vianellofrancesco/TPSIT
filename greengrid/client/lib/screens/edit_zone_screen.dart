@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 
 import '../config/app_colors.dart';
@@ -5,7 +7,7 @@ import '../models/zone_monitored.dart';
 import '../services/api_service.dart';
 import '../services/connectivity_service.dart';
 import '../services/database_helper.dart';
-
+import '../widgets/offline_banner.dart';
 
 class EditZoneScreen extends StatefulWidget {
   final ZoneMonitored zone;
@@ -27,27 +29,50 @@ class _EditZoneScreenState extends State<EditZoneScreen> {
   bool _saving = false;
   bool _deleting = false;
 
+  final ConnectivityService _connectivity = ConnectivityService();
+  bool _online = true;
+  StreamSubscription<bool>? _connSub;
+
   @override
   void initState() {
     super.initState();
     _labelCtrl = TextEditingController(text: widget.zone.userLabel ?? '');
     _notesCtrl = TextEditingController(text: widget.zone.notes ?? '');
+    _initConnectivity();
+  }
+
+  Future<void> _initConnectivity() async {
+    _online = await _connectivity.isOnline();
+    if (mounted) setState(() {});
+    _connSub = _connectivity.onConnectivityChanged.listen((isOn) {
+      if (!mounted) return;
+      setState(() => _online = isOn);
+    });
   }
 
   @override
   void dispose() {
+    _connSub?.cancel();
     _labelCtrl.dispose();
     _notesCtrl.dispose();
     super.dispose();
+  }
+
+  void _showError(String msg) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(msg),
+        backgroundColor: AppColors.error,
+        behavior: SnackBarBehavior.floating,
+      ),
+    );
   }
 
   Future<bool> _ensureOnline() async {
     final online = await ConnectivityService().isOnline();
     if (online) return true;
     if (!mounted) return false;
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Impossibile modificare, controlla la connessione')),
-    );
+    _showError('Impossibile modificare, controlla la connessione');
     return false;
   }
 
@@ -57,16 +82,14 @@ class _EditZoneScreenState extends State<EditZoneScreen> {
     try {
       final updated = await widget.apiService.patchZone(widget.zone.id!, {
         'user_label': _labelCtrl.text.trim().isEmpty ? null : _labelCtrl.text.trim(),
-        'notes':      _notesCtrl.text.trim().isEmpty ? null : _notesCtrl.text.trim(),
+        'notes': _notesCtrl.text.trim().isEmpty ? null : _notesCtrl.text.trim(),
       });
       await DatabaseHelper.instance.cacheZone(updated);
       if (!mounted) return;
       Navigator.of(context).pop(updated);
     } on ApiException catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Errore: ${e.message}')),
-      );
+      _showError('Errore: ${e.message}');
     } finally {
       if (mounted) setState(() => _saving = false);
     }
@@ -102,9 +125,7 @@ class _EditZoneScreenState extends State<EditZoneScreen> {
       Navigator.of(context).pop('deleted');
     } on ApiException catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Errore: ${e.message}')),
-      );
+      _showError('Errore: ${e.message}');
     } finally {
       if (mounted) setState(() => _deleting = false);
     }
@@ -114,109 +135,127 @@ class _EditZoneScreenState extends State<EditZoneScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(title: const Text('Modifica zona')),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Container(
-              padding: const EdgeInsets.all(14),
-              decoration: BoxDecoration(
-                color: AppColors.primarySurface,
-                borderRadius: BorderRadius.circular(12),
-              ),
+      body: Column(
+        children: [
+          if (!_online) const OfflineBanner(),
+          Expanded(
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.all(16),
               child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  Text(
-                    widget.zone.zoneName,
-                    style: const TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.w500,
-                      color: AppColors.primaryDark,
+                  Container(
+                    padding: const EdgeInsets.all(14),
+                    decoration: BoxDecoration(
+                      color: AppColors.primarySurface,
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          widget.zone.zoneName,
+                          style: const TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.w500,
+                            color: AppColors.primaryDark,
+                          ),
+                        ),
+                        const SizedBox(height: 2),
+                        Text(
+                          widget.zone.zoneKey,
+                          style: const TextStyle(
+                            fontSize: 13,
+                            color: Color(0xFF085041),
+                          ),
+                        ),
+                      ],
                     ),
                   ),
-                  const SizedBox(height: 2),
-                  Text(
-                    widget.zone.zoneKey,
-                    style: const TextStyle(
-                      fontSize: 13,
-                      color: Color(0xFF085041),
+                  const SizedBox(height: 24),
+                  TextField(
+                    controller: _labelCtrl,
+                    decoration: const InputDecoration(
+                      labelText: 'La tua etichetta',
+                      hintText: 'es. Casa, Ufficio...',
+                    ),
+                  ),
+                  const SizedBox(height: 14),
+                  TextField(
+                    controller: _notesCtrl,
+                    maxLines: 4,
+                    decoration: const InputDecoration(
+                      labelText: 'Note personali',
+                      alignLabelWithHint: true,
+                    ),
+                  ),
+                  const SizedBox(height: 24),
+                  SizedBox(
+                    width: double.infinity,
+                    child: ElevatedButton(
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: AppColors.primary,
+                        foregroundColor: Colors.white,
+                        padding: const EdgeInsets.symmetric(vertical: 14),
+                        textStyle: const TextStyle(fontSize: 15, fontWeight: FontWeight.w500),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                      ),
+                      onPressed: (_saving || _deleting || !_online) ? null : _save,
+                      child: _saving
+                          ? const SizedBox(
+                              width: 18,
+                              height: 18,
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2,
+                                color: Colors.white,
+                              ),
+                            )
+                          : const Text('Salva modifiche'),
+                    ),
+                  ),
+                  if (!_online) ...[
+                    const SizedBox(height: 8),
+                    const Text(
+                      'Modifiche non disponibili in modalità offline',
+                      textAlign: TextAlign.center,
+                      style: TextStyle(
+                        fontSize: 13,
+                        color: AppColors.textSecondary,
+                      ),
+                    ),
+                  ],
+                  const SizedBox(height: 16),
+                  SizedBox(
+                    width: double.infinity,
+                    child: OutlinedButton(
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: AppColors.error,
+                        side: const BorderSide(color: AppColors.error),
+                        padding: const EdgeInsets.symmetric(vertical: 14),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                      ),
+                      onPressed: (_saving || _deleting || !_online) ? null : _confirmDelete,
+                      child: _deleting
+                          ? const SizedBox(
+                              width: 18,
+                              height: 18,
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2,
+                                color: AppColors.error,
+                              ),
+                            )
+                          : const Text('Elimina zona'),
                     ),
                   ),
                 ],
               ),
             ),
-            const SizedBox(height: 24),
-            TextField(
-              controller: _labelCtrl,
-              decoration: const InputDecoration(
-                labelText: 'La tua etichetta',
-                hintText: 'es. Casa, Ufficio…',
-              ),
-            ),
-            const SizedBox(height: 14),
-            TextField(
-              controller: _notesCtrl,
-              maxLines: 4,
-              decoration: const InputDecoration(
-                labelText: 'Note personali',
-                alignLabelWithHint: true,
-              ),
-            ),
-            const SizedBox(height: 24),
-            SizedBox(
-              width: double.infinity,
-              child: ElevatedButton(
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: AppColors.primary,
-                  foregroundColor: Colors.white,
-                  padding: const EdgeInsets.symmetric(vertical: 14),
-                  textStyle: const TextStyle(fontSize: 15, fontWeight: FontWeight.w500),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(10),
-                  ),
-                ),
-                onPressed: _saving || _deleting ? null : _save,
-                child: _saving
-                    ? const SizedBox(
-                        width: 18,
-                        height: 18,
-                        child: CircularProgressIndicator(
-                          strokeWidth: 2,
-                          color: Colors.white,
-                        ),
-                      )
-                    : const Text('Salva modifiche'),
-              ),
-            ),
-            const SizedBox(height: 16),
-            SizedBox(
-              width: double.infinity,
-              child: OutlinedButton(
-                style: OutlinedButton.styleFrom(
-                  foregroundColor: AppColors.error,
-                  side: const BorderSide(color: AppColors.error),
-                  padding: const EdgeInsets.symmetric(vertical: 14),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(10),
-                  ),
-                ),
-                onPressed: _saving || _deleting ? null : _confirmDelete,
-                child: _deleting
-                    ? const SizedBox(
-                        width: 18,
-                        height: 18,
-                        child: CircularProgressIndicator(
-                          strokeWidth: 2,
-                          color: AppColors.error,
-                        ),
-                      )
-                    : const Text('Elimina zona'),
-              ),
-            ),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }

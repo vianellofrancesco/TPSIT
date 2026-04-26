@@ -4,10 +4,11 @@ require_once __DIR__ . '/../config/database.php';
 
 class ProxyController {
 
-    /** Sostituire con la propria chiave Electricity Maps Free Tier. */
-    private const API_KEY  = 'TUA_API_KEY';
+    private const API_KEY = 'KJCqBvdSYEgT6Qb5hG3Q';
     private const BASE_URL = 'https://api.electricitymap.org/v3/';
-    private const TIMEOUT  = 10;
+    private const TIMEOUT = 10;
+    private const RATE_LIMIT_MAX = 30;
+    private const RATE_LIMIT_WINDOW = 60;
 
     private PDO $db;
 
@@ -16,11 +17,16 @@ class ProxyController {
         $this->db = $database->getConnection();
     }
 
-    /** Dispatch delle sotto-azioni del proxy. */
     public function handle(string $method, ?string $action): void {
         if ($method !== 'GET') {
             http_response_code(405);
             echo json_encode(['error' => 'Metodo non consentito']);
+            return;
+        }
+
+        if (!$this->checkRateLimit()) {
+            http_response_code(429);
+            echo json_encode(['error' => 'Troppe richieste, attendi un minuto']);
             return;
         }
 
@@ -43,8 +49,25 @@ class ProxyController {
         }
     }
 
+    private function checkRateLimit(): bool {
+        if (session_status() === PHP_SESSION_NONE) {
+            session_start();
+        }
+        $now = time();
+        $bucket = $_SESSION['proxy_rate_limit'] ?? null;
+        if (!is_array($bucket) || ($now - ($bucket['start'] ?? 0)) >= self::RATE_LIMIT_WINDOW) {
+            $_SESSION['proxy_rate_limit'] = ['start' => $now, 'count' => 1];
+            return true;
+        }
+        if ($bucket['count'] >= self::RATE_LIMIT_MAX) {
+            return false;
+        }
+        $_SESSION['proxy_rate_limit']['count'] = $bucket['count'] + 1;
+        return true;
+    }
+
     private function zones(): void {
-        $response = $this->callApi('zones');
+        $response = $this->callApi('zones', false);
         if ($response === null) return;
         echo json_encode($response);
     }
@@ -58,12 +81,12 @@ class ProxyController {
 
         if ($this->isZoneMonitored($zone) && isset($response['datetime'])) {
             $this->insertReading([
-                'zone_key'             => $zone,
-                'carbon_intensity'     => $response['carbonIntensity'] ?? null,
+                'zone_key' => $zone,
+                'carbon_intensity' => $response['carbonIntensity'] ?? null,
                 'renewable_percentage' => null,
-                'fossil_percentage'    => null,
+                'fossil_percentage' => null,
                 'power_breakdown_json' => null,
-                'reading_datetime'     => $this->normalizeDatetime($response['datetime']),
+                'reading_datetime' => $this->normalizeDatetime($response['datetime']),
             ]);
         }
 
@@ -84,12 +107,12 @@ class ProxyController {
             $fossilFree = $response['fossilFreePercentage'] ?? null;
 
             $this->insertReading([
-                'zone_key'             => $zone,
-                'carbon_intensity'     => null,
+                'zone_key' => $zone,
+                'carbon_intensity' => null,
                 'renewable_percentage' => $response['renewablePercentage'] ?? null,
-                'fossil_percentage'    => $fossilFree !== null ? (100 - $fossilFree) : null,
+                'fossil_percentage' => $fossilFree !== null ? (100 - $fossilFree) : null,
                 'power_breakdown_json' => $breakdown !== null ? json_encode($breakdown) : null,
-                'reading_datetime'     => $this->normalizeDatetime($response['datetime']),
+                'reading_datetime' => $this->normalizeDatetime($response['datetime']),
             ]);
         }
 
@@ -107,12 +130,12 @@ class ProxyController {
             foreach ($response['history'] as $entry) {
                 if (!isset($entry['datetime'])) continue;
                 $this->insertReading([
-                    'zone_key'             => $zone,
-                    'carbon_intensity'     => $entry['carbonIntensity'] ?? null,
+                    'zone_key' => $zone,
+                    'carbon_intensity' => $entry['carbonIntensity'] ?? null,
                     'renewable_percentage' => null,
-                    'fossil_percentage'    => null,
+                    'fossil_percentage' => null,
                     'power_breakdown_json' => null,
-                    'reading_datetime'     => $this->normalizeDatetime($entry['datetime']),
+                    'reading_datetime' => $this->normalizeDatetime($entry['datetime']),
                 ]);
             }
         }
@@ -120,29 +143,30 @@ class ProxyController {
         echo json_encode($response);
     }
 
-    
-    private function callApi(string $path): ?array {
+    private function callApi(string $path, bool $withAuth = true): ?array {
         $url = self::BASE_URL . $path;
+
+        $headers = ['Accept: application/json'];
+        if ($withAuth) {
+            $headers[] = 'auth-token: ' . self::API_KEY;
+        }
 
         $ch = curl_init($url);
         curl_setopt_array($ch, [
             CURLOPT_RETURNTRANSFER => true,
-            CURLOPT_TIMEOUT        => self::TIMEOUT,
+            CURLOPT_TIMEOUT => self::TIMEOUT,
             CURLOPT_CONNECTTIMEOUT => self::TIMEOUT,
-            CURLOPT_HTTPHEADER     => [
-                'auth-token: ' . self::API_KEY,
-                'Accept: application/json',
-            ],
+            CURLOPT_HTTPHEADER => $headers,
         ]);
 
-        $body       = curl_exec($ch);
-        $httpCode   = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-        $curlError  = curl_error($ch);
+        $body = curl_exec($ch);
+        $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+        $curlError = curl_error($ch);
         curl_close($ch);
 
         if ($body === false || $curlError !== '') {
             http_response_code(502);
-            echo json_encode(['error' => 'Errore di connessione all\'API esterna', 'detail' => $curlError]);
+            echo json_encode(['error' => 'Errore di connessione all\'API esterna']);
             return null;
         }
 
@@ -154,11 +178,7 @@ class ProxyController {
 
         if ($httpCode < 200 || $httpCode >= 300) {
             http_response_code(502);
-            echo json_encode([
-                'error'     => 'Errore dall\'API esterna',
-                'upstream'  => $httpCode,
-                'response'  => json_decode($body, true) ?? $body,
-            ]);
+            echo json_encode(['error' => 'Errore dall\'API esterna']);
             return null;
         }
 
@@ -188,16 +208,6 @@ class ProxyController {
         return (bool)$stmt->fetch();
     }
 
-    /**
-     * Inserisce o aggiorna la lettura per (zone_key, reading_datetime).
-     *
-     * Comportamento di MERGE: se esiste già una riga con stessa zone+datetime,
-     * aggiorna SOLO i campi non-null del nuovo set (via COALESCE), preservando
-     * i dati salvati da chiamate precedenti. Questo è fondamentale perché i tre
-     * endpoint proxy (carbon-intensity, power-breakdown, history) popolano
-     * campi diversi della stessa riga logica: l'ordine delle chiamate non deve
-     * causare perdita di dati.
-     */
     private function insertReading(array $r): void {
         $check = $this->db->prepare(
             "SELECT id FROM carbon_readings
@@ -210,9 +220,9 @@ class ProxyController {
         if ($existing) {
             $stmt = $this->db->prepare(
                 "UPDATE carbon_readings
-                 SET carbon_intensity     = COALESCE(:ci, carbon_intensity),
+                 SET carbon_intensity = COALESCE(:ci, carbon_intensity),
                      renewable_percentage = COALESCE(:rp, renewable_percentage),
-                     fossil_percentage    = COALESCE(:fp, fossil_percentage),
+                     fossil_percentage = COALESCE(:fp, fossil_percentage),
                      power_breakdown_json = COALESCE(:pb, power_breakdown_json)
                  WHERE id = :id"
             );
@@ -243,7 +253,6 @@ class ProxyController {
         ]);
     }
 
-    /** "2025-04-19T10:00:00.000Z" → "2025-04-19 10:00:00" (DATETIME MySQL). */
     private function normalizeDatetime(string $iso): string {
         try {
             $dt = new DateTime($iso);

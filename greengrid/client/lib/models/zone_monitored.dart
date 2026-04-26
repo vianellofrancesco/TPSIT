@@ -19,55 +19,55 @@ class ZoneMonitored {
 
   factory ZoneMonitored.fromJson(Map<String, dynamic> json) {
     return ZoneMonitored(
-      id:         _parseInt(json['id']),
-      zoneKey:    json['zone_key']   as String,
-      zoneName:   json['zone_name']  as String,
-      userLabel:  json['user_label'] as String?,
-      notes:      json['notes']      as String?,
-      createdAt:  _parseDate(json['created_at']),
-      updatedAt:  _parseDate(json['updated_at']),
+      id: _parseInt(json['id']),
+      zoneKey: json['zone_key'] as String,
+      zoneName: json['zone_name'] as String,
+      userLabel: json['user_label'] as String?,
+      notes: json['notes'] as String?,
+      createdAt: _parseDate(json['created_at']),
+      updatedAt: _parseDate(json['updated_at']),
     );
   }
 
   Map<String, dynamic> toJson() {
     return {
       if (id != null) 'id': id,
-      'zone_key':   zoneKey,
-      'zone_name':  zoneName,
+      'zone_key': zoneKey,
+      'zone_name': zoneName,
       'user_label': userLabel,
-      'notes':      notes,
+      'notes': notes,
     };
   }
 
   Map<String, dynamic> toJsonForPatch(List<String> fields) {
     final Map<String, dynamic> all = {
-      'zone_key':   zoneKey,
-      'zone_name':  zoneName,
+      'zone_key': zoneKey,
+      'zone_name': zoneName,
       'user_label': userLabel,
-      'notes':      notes,
+      'notes': notes,
     };
     return {for (final f in fields) if (all.containsKey(f)) f: all[f]};
   }
 
   factory ZoneMonitored.fromSqlite(Map<String, dynamic> row) {
     return ZoneMonitored(
-      id:         row['id'] as int?,
-      zoneKey:    row['zone_key']   as String,
-      zoneName:   row['zone_name']  as String,
-      userLabel:  row['user_label'] as String?,
-      notes:      row['notes']      as String?,
-      createdAt:  _parseDate(row['created_at']),
-      updatedAt:  _parseDate(row['updated_at']),
+      id: row['id'] as int?,
+      zoneKey: row['zone_key'] as String,
+      zoneName: row['zone_name'] as String,
+      userLabel: row['user_label'] as String?,
+      notes: row['notes'] as String?,
+      createdAt: _parseDate(row['created_at']),
+      updatedAt: _parseDate(row['updated_at']),
     );
   }
 
   Map<String, dynamic> toSqlite() {
     return {
       if (id != null) 'id': id,
-      'zone_key':   zoneKey,
-      'zone_name':  zoneName,
+      'zone_key': zoneKey,
+      'zone_name': zoneName,
       'user_label': userLabel,
-      'notes':      notes,
+      'notes': notes,
       'created_at': createdAt?.toIso8601String(),
       'updated_at': updatedAt?.toIso8601String(),
     };
@@ -83,13 +83,13 @@ class ZoneMonitored {
     DateTime? updatedAt,
   }) {
     return ZoneMonitored(
-      id:         id        ?? this.id,
-      zoneKey:    zoneKey   ?? this.zoneKey,
-      zoneName:   zoneName  ?? this.zoneName,
-      userLabel:  userLabel ?? this.userLabel,
-      notes:      notes     ?? this.notes,
-      createdAt:  createdAt ?? this.createdAt,
-      updatedAt:  updatedAt ?? this.updatedAt,
+      id: id ?? this.id,
+      zoneKey: zoneKey ?? this.zoneKey,
+      zoneName: zoneName ?? this.zoneName,
+      userLabel: userLabel ?? this.userLabel,
+      notes: notes ?? this.notes,
+      createdAt: createdAt ?? this.createdAt,
+      updatedAt: updatedAt ?? this.updatedAt,
     );
   }
 

@@ -2,10 +2,6 @@ import 'package:flutter/material.dart';
 
 import '../config/app_colors.dart';
 
-/// Banner compatto mostrato quando il dispositivo è offline.
-///
-/// Specifiche: sfondo [AppColors.warning], pallino arancione [AppColors.solar],
-/// testo [AppColors.warningText] "Offline — dati dalla cache locale".
 class OfflineBanner extends StatelessWidget {
   const OfflineBanner({super.key});
 
@@ -21,7 +17,7 @@ class OfflineBanner extends StatelessWidget {
           _Dot(),
           SizedBox(width: 8),
           Text(
-            'Offline — dati dalla cache locale',
+            'Offline - dati dalla cache locale',
             style: TextStyle(
               fontSize: 13,
               color: AppColors.warningText,

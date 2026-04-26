@@ -1,78 +1,74 @@
-# GreenGrid — Monitoraggio Intensità Carbonica Reti Elettriche
+# GreenGrid — Monitoraggio Intensità Carbonica Reti Elettriche  
 
-**Sviluppatore:** Francesco Vianello
+**Sviluppatore:** Francesco  
 
----
-
-## Descrizione
-
-GreenGrid è un’app mobile in Flutter con backend REST in PHP e MySQL. L’app offre un modo semplice per monitorare l’intensità di carbonio delle reti elettriche in diverse aree del mondo.
-
-L’utente può:
-- salvare le zone di interesse con etichette personalizzate e note
-- visualizzare il mix energetico in tempo reale
-- consultare lo storico
-
-I dati provengono dall’API pubblica di Electricity Maps.
+## Abstract  
+GreenGrid è un’app mobile sviluppata in Flutter con backend REST in PHP + MySQL. Permette di monitorare l’intensità di carbonio in diverse aree del mondo. L’utente può salvare le zone di interesse I dati provengono dall’API pubblica di Electricity Maps e vengono gestiti tramite un proxy backend. L’app include anche una cache locale con SQLite per funzionare offline.
 
 ---
 
-## Tecnologie utilizzate
-
+## Tecnologie utilizzate  
 - **Backend:** PHP con MySQL  
-- **Client:** Flutter (Android)  
-- **API esterna:** Electricity Maps  
+- **Client:** Flutter 
+- **API esterna:** Electricity Maps
 - **Cache locale:** sqflite 
-- **Architettura:** REST API  
+- **Architettura:** REST API con CRUD completo  
 
 ---
 
-## Diario di progetto
+## Diario di progetto  
 
-### Commit 1 — Setup 
+### fase 1 — Setup iniziale e struttura progetto  
+- Creata la struttura base: `server/` e `client/`  
+- Redatto il README iniziale  
 
-- Creazione della struttura del progetto (`server/` e `client/`)
-- Prima definizione del README 
-- Prime scelte di sviluppo
-
-
-### Commit 2 — Database MySQL e configurazione server 
-
-- Creato lo schema del database con due tabelle: zones_monitored e carbon_readings
-- Scelta di usare zone_key come chiave unica e foreign key per collegare le due tabelle
-- Configurata connessione PDO con error handling
-- Creato router REST base con supporto CORS
-
-
-### Commit 3 — CRUD completo zones_monitored
-- Implementati tutti i metodi HTTP per la risorsa zones: GET, POST, PUT, PATCH, DELETE
-- PATCH implementato con query dinamica
-- Gestione errori con codici HTTP appropriati 
-  
-
-### Commit 4 — CRUD carbon_readings e proxy API esterna
-- Implementato CRUD completo per la risorsa readings
-- Creato il ProxyController che funge da intermediario verso l'API Electricity Maps
-- Scelta architetturale: proxy salva automaticamente le letture nel database ad ogni chiamata
-- Usato cURL per le chiamate HTTP esterne e gestione errori
-
-
-### Commit 5 — setup flutter app, modelli e servizi
-- Creazione app Flutter 
-- Implementati i modelli ZoneMonitored e CarbonReading con supporto doppia serializzazione (JSON per API e Map per SQLite)
-- Creazione ApiService con tutti i metodi per comunicare col backend 
-- Palette centralizzata in `lib/config/app_colors.dart` con colori dinamici per l'intensità carbonica 
-
-
-### Commit 6 — Flutter: UI completa e cache SQLite
-- Implementata la cache locale con sqflite: due tabelle speculari a quelle del server per permettere il funzionamento offline
-- Creati i widget riutilizzabili: ZoneCard, PowerMixBar, OfflineBanner 
-- Implementate tutte le 4 schermate: Home , Dettaglio zona, Aggiungi zona, Modifica zona 
 
 ---
 
-## Fonti
+### fase 2 — Database e configurazione server  
+- Creato schema MySQL con due tabelle:  
+  - `zones_monitored`  
+  - `carbon_readings`  
+- Uso di `zone_key` come identificatore univoco e foreign key  
+- Campo `power_breakdown_json` salvato come TEXT per flessibilità  
+- Configurata connessione PDO con gestione errori  
+- Implementato router REST base con supporto CORS  
 
-- Electricity Maps API Docs: https://docs.electricitymaps.com/
-- PHP documentation: https://www.php.net/manual/
-- Flutter documentation: https://docs.flutter.dev/
+---
+
+### fase 3 — CRUD completo zones  
+- Implementati tutti i metodi HTTP 
+- Utilizzo di prepared statements 
+- Gestione errori con codici HTTP appropriati  
+
+---
+
+### fase 4 — CRUD readings e proxy API  
+- CRUD completo per `carbon_readings`  
+- Implementato ProxyController verso Electricity Maps  
+- Salvataggio automatico delle letture nel DB   
+- Chiamate HTTP via cURL con timeout e gestione errori  
+
+---
+
+### fase 5 — Flutter: base app, modelli e servizi  
+- Struttura progetto organizzata (`models/`, `services/`, `screens/`, ecc.)    
+- Creato `ApiService` per comunicazione backend  
+- Uso di `connectivity_plus` per stato rete  
+- UI
+
+---
+
+### fase 6 — UI completa e cache locale  
+- Implementata cache SQLite speculare al backend  
+- Creati widget riutilizzabili:  
+  - ZoneCard  
+  - PowerMixBar  
+  - OfflineBanner  
+- Schermate complete  
+
+
+---
+
+### fase 7 — Logica offline completa  
+

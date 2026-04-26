@@ -2,13 +2,11 @@ import 'package:flutter/material.dart';
 
 import '../config/app_colors.dart';
 
-
 class PowerMixBar extends StatelessWidget {
   final Map<String, num> breakdown;
   final double height;
   final bool showLegend;
 
-  
   static const double _legendThreshold = 2.0;
 
   const PowerMixBar({
@@ -66,7 +64,6 @@ class PowerMixBar extends StatelessWidget {
     );
   }
 
-  
   List<MapEntry<String, double>> _normalizedEntries() {
     final filtered = <String, double>{};
     breakdown.forEach((k, v) {

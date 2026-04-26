@@ -4,12 +4,11 @@ import 'package:sqflite/sqflite.dart';
 import '../models/carbon_reading.dart';
 import '../models/zone_monitored.dart';
 
-
 class DatabaseHelper {
   DatabaseHelper._();
   static final DatabaseHelper instance = DatabaseHelper._();
 
-  static const _dbName    = 'greengrid_cache.db';
+  static const _dbName = 'greengrid_cache.db';
   static const _dbVersion = 1;
 
   Database? _db;
@@ -46,17 +45,12 @@ class DatabaseHelper {
             UNIQUE(zone_key, reading_datetime)
           )
         ''');
-        await db.execute(
-          'CREATE INDEX idx_readings_zone ON readings_cache(zone_key)',
-        );
-        await db.execute(
-          'CREATE INDEX idx_readings_dt ON readings_cache(reading_datetime)',
-        );
+        await db.execute('CREATE INDEX idx_readings_zone ON readings_cache(zone_key)');
+        await db.execute('CREATE INDEX idx_readings_dt ON readings_cache(reading_datetime)');
       },
     );
   }
 
-  
   Future<void> cacheZones(List<ZoneMonitored> zones) async {
     final db = await _database;
     await db.transaction((txn) async {
@@ -71,7 +65,6 @@ class DatabaseHelper {
     });
   }
 
-  /// Upsert di una singola zona (usato dopo create/update/patch).
   Future<void> cacheZone(ZoneMonitored zone) async {
     final db = await _database;
     await db.insert(
@@ -83,10 +76,7 @@ class DatabaseHelper {
 
   Future<List<ZoneMonitored>> getCachedZones() async {
     final db = await _database;
-    final rows = await db.query(
-      'zones_cache',
-      orderBy: 'created_at DESC',
-    );
+    final rows = await db.query('zones_cache', orderBy: 'created_at DESC');
     return rows.map(ZoneMonitored.fromSqlite).toList();
   }
 
@@ -108,17 +98,15 @@ class DatabaseHelper {
     });
   }
 
-  
   Future<void> cacheReadings(String zoneKey, List<CarbonReading> readings) async {
     if (readings.isEmpty) return;
     final db = await _database;
     final batch = db.batch();
     for (final r in readings) {
       final row = r.toSqlite();
-    
       row.remove('id');
-      row['server_id']  = r.id;
-      row['zone_key']   = zoneKey; 
+      row['server_id'] = r.id;
+      row['zone_key'] = zoneKey;
       batch.insert(
         'readings_cache',
         row,
@@ -140,7 +128,6 @@ class DatabaseHelper {
     return rows.map(CarbonReading.fromSqlite).toList();
   }
 
-  
   Future<void> clearOldReadings(int daysToKeep) async {
     final db = await _database;
     final threshold = DateTime.now()
@@ -152,6 +139,30 @@ class DatabaseHelper {
       where: 'reading_datetime < ?',
       whereArgs: [threshold],
     );
+  }
+
+  Future<int> getCacheCount() async {
+    final db = await _database;
+    final rows = await db.rawQuery('SELECT COUNT(*) AS n FROM readings_cache');
+    final n = rows.first['n'];
+    if (n is int) return n;
+    return int.tryParse('$n') ?? 0;
+  }
+
+  Future<DateTime?> getLastSyncTime() async {
+    final db = await _database;
+    final rows = await db.rawQuery('SELECT MAX(fetched_at) AS last FROM readings_cache');
+    final raw = rows.first['last'];
+    if (raw is String && raw.isNotEmpty) return DateTime.tryParse(raw);
+    return null;
+  }
+
+  Future<void> clearAllCache() async {
+    final db = await _database;
+    await db.transaction((txn) async {
+      await txn.delete('readings_cache');
+      await txn.delete('zones_cache');
+    });
   }
 
   Future<void> close() async {

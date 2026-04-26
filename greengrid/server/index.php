@@ -1,6 +1,5 @@
 <?php
 
-
 header('Access-Control-Allow-Origin: *');
 header('Access-Control-Allow-Methods: GET, POST, PUT, PATCH, DELETE, OPTIONS');
 header('Access-Control-Allow-Headers: Content-Type, Authorization');
@@ -25,7 +24,7 @@ if (empty($segments) || $segments[0] !== 'api') {
 }
 
 $resource = $segments[1] ?? null;
-$id       = $segments[2] ?? null;
+$id = $segments[2] ?? null;
 
 switch ($resource) {
     case 'zones':
@@ -35,16 +34,19 @@ switch ($resource) {
         break;
 
     case 'readings':
-        echo json_encode(['message' => 'GreenGrid API v1.0', 'resource' => 'readings', 'id' => $id]);
+        require __DIR__ . '/api/ReadingsController.php';
+        $controller = new ReadingsController();
+        $controller->handle($method, $id);
         break;
 
     case 'proxy':
-        $action = $id ?? null;
-        echo json_encode(['message' => 'GreenGrid API v1.0', 'resource' => 'proxy', 'action' => $action]);
+        require __DIR__ . '/api/ProxyController.php';
+        $controller = new ProxyController();
+        $controller->handle($method, $id);
         break;
 
     default:
         http_response_code(404);
-        echo json_encode(['error' => 'Resource not found']);
+        echo json_encode(['error' => 'Risorsa non trovata']);
         break;
 }

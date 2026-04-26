@@ -1,16 +1,17 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
-// `intl` esporta la propria `TextDirection` (per BiDi) che collide con quella
-// di `dart:ui` usata da `TextPainter`; la nascondiamo.
 import 'package:intl/intl.dart' hide TextDirection;
 
 import '../config/app_colors.dart';
 import '../models/carbon_reading.dart';
 import '../models/zone_monitored.dart';
 import '../services/api_service.dart';
+import '../services/connectivity_service.dart';
 import '../services/database_helper.dart';
+import '../widgets/offline_banner.dart';
 import '../widgets/power_mix_bar.dart';
 import 'edit_zone_screen.dart';
-
 
 class ZoneDetailScreen extends StatefulWidget {
   final ZoneMonitored zone;
@@ -37,15 +38,50 @@ class _ZoneDetailScreenState extends State<ZoneDetailScreen> {
   double? _renewablePct;
   List<_HistoryPoint> _history = const [];
 
+  final ConnectivityService _connectivity = ConnectivityService();
+  bool _online = true;
+  StreamSubscription<bool>? _connSub;
+
   @override
   void initState() {
     super.initState();
     _zone = widget.zone;
-    _load();
+    _initConnectivityAndLoad();
+  }
+
+  Future<void> _initConnectivityAndLoad() async {
+    _online = await _connectivity.isOnline();
+    _connSub = _connectivity.onConnectivityChanged.listen((isOn) {
+      if (!mounted) return;
+      final wasOffline = !_online;
+      setState(() => _online = isOn);
+      if (wasOffline && isOn) _load();
+    });
+    await _load();
+  }
+
+  @override
+  void dispose() {
+    _connSub?.cancel();
+    super.dispose();
   }
 
   Future<void> _load() async {
-    setState(() { _loading = true; _error = null; });
+    setState(() {
+      _loading = true;
+      _error = null;
+    });
+
+    if (!_online) {
+      final hadCache = await _loadFromCache();
+      if (!mounted) return;
+      setState(() {
+        _loading = false;
+        _error = hadCache ? null : 'Nessun dato in cache per questa zona';
+      });
+      return;
+    }
+
     try {
       final results = await Future.wait([
         widget.apiService.getCarbonIntensity(_zone.zoneKey),
@@ -55,44 +91,37 @@ class _ZoneDetailScreenState extends State<ZoneDetailScreen> {
 
       final intensityRes = results[0] as Map<String, dynamic>;
       final breakdownRes = results[1] as Map<String, dynamic>;
-      final historyRes   = results[2] as List<Map<String, dynamic>>;
+      final historyRes = results[2] as List<Map<String, dynamic>>;
 
-      // Intensità live
       _intensity = (intensityRes['carbonIntensity'] as num?)?.toDouble();
       final dtStr = intensityRes['datetime'] as String?;
       _intensityUpdatedAt = dtStr != null ? DateTime.tryParse(dtStr) : null;
 
-      // Mix
       final rawBreakdown = breakdownRes['powerConsumptionBreakdown']
                        ?? breakdownRes['powerProductionBreakdown'];
       _breakdown = _numMapFrom(rawBreakdown);
       _renewablePct = (breakdownRes['renewablePercentage'] as num?)?.toDouble();
 
-      // History 24h
       _history = historyRes
           .map((e) => _HistoryPoint(
-                dt: DateTime.tryParse((e['datetime'] ?? '').toString()) ??
-                    DateTime.now(),
+                dt: DateTime.tryParse((e['datetime'] ?? '').toString()) ?? DateTime.now(),
                 value: (e['carbonIntensity'] as num?)?.toDouble(),
               ))
           .where((p) => p.value != null)
           .toList()
         ..sort((a, b) => a.dt.compareTo(b.dt));
 
-      // Persistenza cache: lettura "corrente" + serie oraria.
       await _persistToCache(historyRes);
 
       setState(() => _loading = false);
     } on ApiException catch (e) {
-      // Fallback: riempi i campi dalla cache, se disponibile.
       final hadCache = await _loadFromCache();
       setState(() {
         _loading = false;
-        _error   = hadCache ? null : e.message;
+        _error = hadCache ? null : e.message;
       });
     }
   }
-
 
   Future<void> _persistToCache(List<Map<String, dynamic>> historyRes) async {
     final cache = DatabaseHelper.instance;
@@ -100,12 +129,12 @@ class _ZoneDetailScreenState extends State<ZoneDetailScreen> {
 
     if (_intensity != null || _breakdown.isNotEmpty || _renewablePct != null) {
       readings.add(CarbonReading(
-        zoneKey:             _zone.zoneKey,
-        carbonIntensity:     _intensity,
+        zoneKey: _zone.zoneKey,
+        carbonIntensity: _intensity,
         renewablePercentage: _renewablePct,
-        powerBreakdown:      _breakdown.map((k, v) => MapEntry(k, v.toDouble())),
-        readingDatetime:     _intensityUpdatedAt ?? DateTime.now(),
-        fetchedAt:           DateTime.now(),
+        powerBreakdown: _breakdown.map((k, v) => MapEntry(k, v.toDouble())),
+        readingDatetime: _intensityUpdatedAt ?? DateTime.now(),
+        fetchedAt: DateTime.now(),
       ));
     }
 
@@ -114,10 +143,10 @@ class _ZoneDetailScreenState extends State<ZoneDetailScreen> {
       final ci = (e['carbonIntensity'] as num?)?.toDouble();
       if (dt == null || ci == null) continue;
       readings.add(CarbonReading(
-        zoneKey:         _zone.zoneKey,
+        zoneKey: _zone.zoneKey,
         carbonIntensity: ci,
         readingDatetime: dt,
-        fetchedAt:       DateTime.now(),
+        fetchedAt: DateTime.now(),
       ));
     }
 
@@ -125,7 +154,6 @@ class _ZoneDetailScreenState extends State<ZoneDetailScreen> {
       await cache.cacheReadings(_zone.zoneKey, readings);
     }
   }
-
 
   Future<bool> _loadFromCache() async {
     final cached = await DatabaseHelper.instance
@@ -136,14 +164,12 @@ class _ZoneDetailScreenState extends State<ZoneDetailScreen> {
       (r) => r.carbonIntensity != null,
       orElse: () => cached.first,
     );
-    _intensity          = latest.carbonIntensity;
+    _intensity = latest.carbonIntensity;
     _intensityUpdatedAt = latest.readingDatetime;
-    _renewablePct       = latest.renewablePercentage;
+    _renewablePct = latest.renewablePercentage;
 
     final bd = latest.powerBreakdown;
-    _breakdown = bd == null
-        ? const {}
-        : _numMapFrom(bd);
+    _breakdown = bd == null ? const {} : _numMapFrom(bd);
 
     _history = cached
         .where((r) => r.carbonIntensity != null)
@@ -188,19 +214,26 @@ class _ZoneDetailScreenState extends State<ZoneDetailScreen> {
         actions: [
           IconButton(
             icon: const Icon(Icons.edit),
-            tooltip: 'Modifica zona',
-            onPressed: _openEdit,
+            tooltip: _online ? 'Modifica zona' : 'Modifica non disponibile offline',
+            onPressed: _online ? _openEdit : null,
           ),
         ],
       ),
-      body: RefreshIndicator(
-        onRefresh: _load,
-        color: AppColors.primary,
-        child: _loading
-            ? const Center(child: CircularProgressIndicator(color: AppColors.primary))
-            : _error != null
-                ? _buildError()
-                : _buildContent(),
+      body: Column(
+        children: [
+          if (!_online) const OfflineBanner(),
+          Expanded(
+            child: RefreshIndicator(
+              onRefresh: _load,
+              color: AppColors.primary,
+              child: _loading
+                  ? const Center(child: CircularProgressIndicator(color: AppColors.primary))
+                  : _error != null
+                      ? _buildError()
+                      : _buildContent(),
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -250,15 +283,20 @@ class _ZoneDetailScreenState extends State<ZoneDetailScreen> {
   Widget _buildHeader() {
     if (_intensity == null) {
       return _headerShell(
-        value: const Text('—',
-            style: TextStyle(
-                fontSize: 52, fontWeight: FontWeight.w700, color: AppColors.textSecondary)),
+        value: const Text(
+          '—',
+          style: TextStyle(
+            fontSize: 52,
+            fontWeight: FontWeight.w700,
+            color: AppColors.textSecondary,
+          ),
+        ),
         badge: null,
         subtitle: 'Dati non disponibili',
       );
     }
 
-    final color = AppColors.carbonColor(_intensity!);
+    final color = _lineColorFor(_intensity!);
     final level = AppColors.carbonLevel(_intensity!);
 
     return _headerShell(
@@ -322,11 +360,13 @@ class _ZoneDetailScreenState extends State<ZoneDetailScreen> {
         border: Border.all(color: Colors.grey.shade200, width: 0.5),
       ),
       child: SizedBox(
-        height: 150,
+        height: 180,
         child: _history.isEmpty
             ? const Center(
-                child: Text('Nessun dato storico',
-                    style: TextStyle(color: AppColors.textSecondary, fontSize: 13)),
+                child: Text(
+                  'Nessun dato storico',
+                  style: TextStyle(color: AppColors.textSecondary, fontSize: 13),
+                ),
               )
             : CustomPaint(
                 painter: _HistoryPainter(_history),
@@ -353,7 +393,6 @@ class _ZoneDetailScreenState extends State<ZoneDetailScreen> {
       );
     }
 
-    // Normalizza a percentuali
     final total = _breakdown.values.fold<double>(0, (a, b) => a + b.toDouble());
     final entries = _breakdown.entries
         .map((e) => MapEntry(e.key, e.value.toDouble() / total * 100))
@@ -467,10 +506,16 @@ class _ZoneDetailScreenState extends State<ZoneDetailScreen> {
   String _relativeTime(DateTime dt) {
     final diff = DateTime.now().toUtc().difference(dt.toUtc());
     if (diff.inMinutes < 1) return 'pochi secondi fa';
-    if (diff.inMinutes < 60) return '${diff.inMinutes} min fa';
-    if (diff.inHours < 24) return '${diff.inHours} h fa';
+    if (diff.inMinutes < 60) return '${diff.inMinutes} minuti fa';
+    if (diff.inHours < 24) return '${diff.inHours} ore fa';
     return DateFormat('dd/MM HH:mm').format(dt.toLocal());
   }
+}
+
+Color _lineColorFor(double value) {
+  if (value < 150) return AppColors.primary;
+  if (value <= 400) return AppColors.carbonHigh;
+  return AppColors.error;
 }
 
 class _HistoryPoint {
@@ -485,17 +530,21 @@ class _HistoryPainter extends CustomPainter {
 
   @override
   void paint(Canvas canvas, Size size) {
-    const double xAxisSpace = 18;
-    final chartH = size.height - xAxisSpace;
-    final chartW = size.width;
+    const double xAxisSpace = 22;
+    const double leftPadding = 4;
+    const double rightPadding = 4;
+    const double topPadding = 6;
 
-    final baseline = Paint()
+    final chartH = size.height - xAxisSpace - topPadding;
+    final chartW = size.width - leftPadding - rightPadding;
+
+    final baselinePaint = Paint()
       ..color = const Color(0xFFEDEDE6)
       ..strokeWidth = 1;
     canvas.drawLine(
-      Offset(0, chartH),
-      Offset(chartW, chartH),
-      baseline,
+      Offset(leftPadding, topPadding + chartH),
+      Offset(leftPadding + chartW, topPadding + chartH),
+      baselinePaint,
     );
 
     if (points.length < 2) {
@@ -508,35 +557,38 @@ class _HistoryPainter extends CustomPainter {
     final maxV = values.reduce((a, b) => a > b ? a : b);
     final span = (maxV - minV).abs() < 1 ? 1 : (maxV - minV);
 
-    final dx = chartW / (points.length - 1);
+    final avg = values.reduce((a, b) => a + b) / values.length;
+    final color = _lineColorFor(avg);
 
+    final dx = chartW / (points.length - 1);
     final linePath = Path();
     final areaPath = Path();
+
     for (int i = 0; i < points.length; i++) {
-      final x = dx * i;
+      final x = leftPadding + dx * i;
       final norm = (points[i].value! - minV) / span;
-      final y = chartH - norm * (chartH - 8) - 4;
+      final y = topPadding + chartH - norm * (chartH - 8) - 4;
       if (i == 0) {
         linePath.moveTo(x, y);
-        areaPath.moveTo(x, chartH);
+        areaPath.moveTo(x, topPadding + chartH);
         areaPath.lineTo(x, y);
       } else {
         linePath.lineTo(x, y);
         areaPath.lineTo(x, y);
       }
     }
-    areaPath.lineTo(chartW, chartH);
+    areaPath.lineTo(leftPadding + chartW, topPadding + chartH);
     areaPath.close();
 
     canvas.drawPath(
       areaPath,
-      Paint()..color = AppColors.primaryLight.withValues(alpha: 0.10),
+      Paint()..color = color.withValues(alpha: 0.15),
     );
     canvas.drawPath(
       linePath,
       Paint()
-        ..color = AppColors.primaryLight
-        ..strokeWidth = 2
+        ..color = color
+        ..strokeWidth = 2.2
         ..style = PaintingStyle.stroke
         ..strokeJoin = StrokeJoin.round
         ..strokeCap = StrokeCap.round,
@@ -546,8 +598,8 @@ class _HistoryPainter extends CustomPainter {
   }
 
   void _drawXAxisLabels(Canvas canvas, Size size, double xAxisSpace) {
-    const labels = ['00', '06', '12', '18', 'Ora'];
-    final y = size.height - xAxisSpace + 4;
+    const labels = ['00:00', '06:00', '12:00', '18:00'];
+    final y = size.height - xAxisSpace + 6;
     for (int i = 0; i < labels.length; i++) {
       final x = (size.width / (labels.length - 1)) * i;
       final tp = TextPainter(
@@ -558,8 +610,8 @@ class _HistoryPainter extends CustomPainter {
         textDirection: TextDirection.ltr,
       )..layout();
       double offsetX = x - tp.width / 2;
-      if (i == 0) offsetX = x;
-      if (i == labels.length - 1) offsetX = x - tp.width;
+      if (i == 0) offsetX = 0;
+      if (i == labels.length - 1) offsetX = size.width - tp.width;
       tp.paint(canvas, Offset(offsetX, y));
     }
   }

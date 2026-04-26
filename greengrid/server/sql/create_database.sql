@@ -32,8 +32,7 @@ CREATE TABLE IF NOT EXISTS carbon_readings (
         ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
-
 INSERT INTO zones_monitored (zone_key, zone_name, user_label, notes) VALUES
-    ('IT-NO', 'Italy (North)', 'Casa',       'Zona nord Italia, mix idroelettrico elevato'),
-    ('FR',    'France',        'Nucleare',  'Francia, alta quota nucleare'),
-    ('DE',    'Germany',       'Carbone', 'Germania, ancora dipendente dal carbone ');
+    ('IT-NO', 'Italy (North)', 'Casa mia',       'Zona nord Italia, mix idroelettrico elevato'),
+    ('FR',    'France',        'Riferimento EU',  'Francia, alta quota nucleare — buon benchmark a bassa CO₂'),
+    ('DE',    'Germany',       'Benchmark carbone', 'Germania, ancora dipendente dal carbone — utile per confronto');

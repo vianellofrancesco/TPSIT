@@ -5,7 +5,6 @@ import '../models/carbon_reading.dart';
 import '../models/zone_monitored.dart';
 import 'power_mix_bar.dart';
 
-
 class ZoneCard extends StatelessWidget {
   final ZoneMonitored zone;
   final CarbonReading? latestReading;
@@ -21,9 +20,9 @@ class ZoneCard extends StatelessWidget {
   });
 
   static Color _intensityColor(double v) {
-    if (v < 150) return AppColors.primary;       
-    if (v <= 400) return AppColors.carbonHigh;   
-    return AppColors.error;                      
+    if (v < 150) return AppColors.primary;
+    if (v <= 400) return AppColors.carbonHigh;
+    return AppColors.error;
   }
 
   Future<void> _confirmDelete(BuildContext context) async {

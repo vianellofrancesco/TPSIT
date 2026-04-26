@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
+
 import 'package:http/http.dart' as http;
 
 import '../config/api_config.dart';
@@ -20,7 +21,6 @@ class ApiService {
   final http.Client _client;
 
   ApiService({http.Client? client}) : _client = client ?? http.Client();
-
 
   Future<List<ZoneMonitored>> getZones() async {
     final data = await _get('/zones');
@@ -57,7 +57,6 @@ class ApiService {
     await _delete('/zones/$id');
   }
 
- 
   Future<List<CarbonReading>> getReadings({String? zoneKey, int limit = 50}) async {
     final qp = <String, String>{'limit': '$limit'};
     if (zoneKey != null && zoneKey.isNotEmpty) qp['zone_key'] = zoneKey;
@@ -76,7 +75,6 @@ class ApiService {
     await _delete('/readings/$id');
   }
 
-  
   Future<Map<String, dynamic>> getAvailableZones() async {
     final data = await _get('/proxy/zones');
     return _asMap(data);
@@ -131,7 +129,6 @@ class ApiService {
   Future<dynamic> _delete(String path) =>
       _send(() => _client.delete(_uri(path), headers: _headers));
 
-  
   Future<dynamic> _send(Future<http.Response> Function() fn) async {
     http.Response res;
     try {

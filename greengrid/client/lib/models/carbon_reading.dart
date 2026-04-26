@@ -38,26 +38,26 @@ class CarbonReading {
     }
 
     return CarbonReading(
-      id:                  _parseInt(json['id']),
-      zoneKey:             json['zone_key'] as String,
-      carbonIntensity:     _parseDouble(json['carbon_intensity']),
+      id: _parseInt(json['id']),
+      zoneKey: json['zone_key'] as String,
+      carbonIntensity: _parseDouble(json['carbon_intensity']),
       renewablePercentage: _parseDouble(json['renewable_percentage']),
-      fossilPercentage:    _parseDouble(json['fossil_percentage']),
-      powerBreakdown:      breakdown,
-      readingDatetime:     _parseDate(json['reading_datetime']) ?? DateTime.now(),
-      fetchedAt:           _parseDate(json['fetched_at']),
+      fossilPercentage: _parseDouble(json['fossil_percentage']),
+      powerBreakdown: breakdown,
+      readingDatetime: _parseDate(json['reading_datetime']) ?? DateTime.now(),
+      fetchedAt: _parseDate(json['fetched_at']),
     );
   }
 
   Map<String, dynamic> toJson() {
     return {
       if (id != null) 'id': id,
-      'zone_key':             zoneKey,
-      'carbon_intensity':     carbonIntensity,
+      'zone_key': zoneKey,
+      'carbon_intensity': carbonIntensity,
       'renewable_percentage': renewablePercentage,
-      'fossil_percentage':    fossilPercentage,
+      'fossil_percentage': fossilPercentage,
       'power_breakdown_json': powerBreakdown != null ? jsonEncode(powerBreakdown) : null,
-      'reading_datetime':     _formatForMysql(readingDatetime),
+      'reading_datetime': _formatForMysql(readingDatetime),
     };
   }
 
@@ -72,27 +72,27 @@ class CarbonReading {
     }
 
     return CarbonReading(
-      id:                  row['id'] as int?,
-      zoneKey:             row['zone_key'] as String,
-      carbonIntensity:     _parseDouble(row['carbon_intensity']),
+      id: row['id'] as int?,
+      zoneKey: row['zone_key'] as String,
+      carbonIntensity: _parseDouble(row['carbon_intensity']),
       renewablePercentage: _parseDouble(row['renewable_percentage']),
-      fossilPercentage:    _parseDouble(row['fossil_percentage']),
-      powerBreakdown:      breakdown,
-      readingDatetime:     _parseDate(row['reading_datetime']) ?? DateTime.now(),
-      fetchedAt:           _parseDate(row['fetched_at']),
+      fossilPercentage: _parseDouble(row['fossil_percentage']),
+      powerBreakdown: breakdown,
+      readingDatetime: _parseDate(row['reading_datetime']) ?? DateTime.now(),
+      fetchedAt: _parseDate(row['fetched_at']),
     );
   }
 
   Map<String, dynamic> toSqlite() {
     return {
       if (id != null) 'id': id,
-      'zone_key':             zoneKey,
-      'carbon_intensity':     carbonIntensity,
+      'zone_key': zoneKey,
+      'carbon_intensity': carbonIntensity,
       'renewable_percentage': renewablePercentage,
-      'fossil_percentage':    fossilPercentage,
+      'fossil_percentage': fossilPercentage,
       'power_breakdown_json': powerBreakdown != null ? jsonEncode(powerBreakdown) : null,
-      'reading_datetime':     readingDatetime.toIso8601String(),
-      'fetched_at':           fetchedAt?.toIso8601String(),
+      'reading_datetime': readingDatetime.toIso8601String(),
+      'fetched_at': fetchedAt?.toIso8601String(),
     };
   }
 
